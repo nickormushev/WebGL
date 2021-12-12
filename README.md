@@ -1,0 +1,4 @@
+# WebGL
+Task, Homeworks and resources for the WebGL course at my university.
+
+Most of the code in this repository works but is not optimal since this is my first time learning computer graphics. I also think the library we created for the course should be reworked because currently it makes use of global variables and there are some bad coding practices included. Also I did not document my solutions very well. I should work on this but I did not have the time. They definetely work but I would suggest reading through the presentations before trying to understande them. Some formulas were just me playing with numbers untill I got it to look right. The course includes 11 homeworks and a ton of tasks. The tasks I will try to do in time but currently I have managed to reach only Lecture 5. The course is really good if you are at my university I highly suggest you take a look at it.
