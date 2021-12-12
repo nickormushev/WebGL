@@ -1,0 +1,101 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Зъбно колело</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		// ъгъл по зъбното колело
+		attribute float aAngle;
+        uniform float uMin;
+        uniform float uMax;
+
+		void main ()
+		{
+			// тук да се оправи да се рисуват елементите на
+			// зъбното колело - както зъбчатата част, така 
+			// и кръглата и плътно кръглата
+
+            // I add 4 to make sure I don't get negative values
+            // or values close to zero
+
+            float rad = (4.0 + sin(10.0 * aAngle))/5.0;
+            float clampedRad = clamp(rad, uMin, uMax);
+			gl_Position = vec4(clampedRad * cos(aAngle)/1.5,clampedRad * sin(aAngle),0,1);
+			//gl_Position = vec4(cos(aAngle)/1.5,rad * sin(aAngle),0,1);
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		uniform vec3 uColor;
+		void main( )
+		{
+			gl_FragColor = vec4(uColor,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			uColor = gl.getUniformLocation(glprog,"uColor");
+			aAngle = gl.getAttribLocation(glprog,"aAngle");
+			uMin = gl.getUniformLocation(glprog,"uMin");
+			uMax = gl.getUniformLocation(glprog,"uMax");
+			
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			// точки по зъбното колело
+			var n = 500;
+
+			// n ъгъла от 0 до 2*pi
+			var data = [];
+            // add 0,0 to draw TRIANGLE_FAN
+            data.push(0,0);
+			for(var i=0; i<n; i++) data.push(2*Math.PI*i/n);
+			
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			gl.uniform3f(uColor,0.3,0.7,0.2);
+			gl.enableVertexAttribArray(aAngle);
+			gl.vertexAttribPointer(aAngle,1,gl.FLOAT,false,0,0);
+
+            gl.uniform1f(uMin, 0.7)
+            gl.uniform1f(uMax, 0.95)
+			// рисуване на окръжност
+			gl.drawArrays(gl.LINE_LOOP,1,n);
+
+            gl.uniform1f(uMin, 0.6)
+            gl.uniform1f(uMax, 0.6)
+            gl.drawArrays(gl.LINE_LOOP,1,n);
+
+            gl.uniform1f(uMin, 0.55)
+            gl.uniform1f(uMax, 0.55)
+            gl.drawArrays(gl.LINE_LOOP,1,n);
+
+            gl.uniform1f(uMin, 0)
+            gl.uniform1f(uMax, 0.08)
+            gl.drawArrays(gl.TRIANGLE_FAN,0,n+1);
+        }
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Зъбно колело</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

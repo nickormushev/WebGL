@@ -1,0 +1,113 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Броеница</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		attribute vec2 aXZ;
+		void main ()
+		{
+			gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vec4(aXZ.x, 0, aXZ.y, 1);
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		uniform vec3 uColor;
+		void main( )
+		{
+			gl_FragColor = vec4(uColor,1);
+		}
+	</script>
+	
+	<script>
+        function circle(angle, armbandRad, circleRad, pointCount) {
+            identity();
+            zRotate(angle);
+            scale([1/circleRad, 0, 1/circleRad]);
+            translate([armbandRad, 0, 0]);
+            useMatrix();
+            gl.drawArrays(gl.LINE_LOOP, 0, pointCount);
+        }
+
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+			
+			aXZ = gl.getAttribLocation(glprog,"aXZ");
+			uColor = gl.getUniformLocation(glprog,"uColor");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			var proj = perspMatrix(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniformMatrix4fv(uProjectionMatrix,false,proj);
+
+			var view = viewMatrix([30,40,50], [0,0,0], [0,0,1]);
+			view = viewMatrix([60,80,0], [0,0,0], [0,0,1]);
+			gl.uniformMatrix4fv(uViewMatrix,false,view);
+
+			// дефиниране на върхове на окръжност
+			var data = [ ];
+            let pointsCount = 50;
+            let degs = 360/pointsCount;
+            let steps = degs * Math.PI/180;
+            let startingRaidus = 4;
+            for(let i = 0; i < pointsCount; i++) {
+
+                //let t = i * steps;
+                //let x = 16 * Math.pow(Math.sin(t), 3);	
+                //let y =	13 * Math.cos(t)- 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t)- Math.cos(4 * t);
+                //data.push(x, y);
+
+                data.push(startingRaidus * Math.cos(i * steps), startingRaidus * Math.sin(i * steps));
+            }
+
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			gl.enableVertexAttribArray(aXZ);
+			gl.vertexAttribPointer(aXZ,2,gl.FLOAT,false,0,0);
+
+			gl.uniform3f(uColor,0,0,0);
+
+			identity();
+			
+			var n = 200; // брой сечения
+			var k = 11;  // брой възли
+            let armbandRad = 10;
+            let changingRad = 1;
+
+            degs = 360/n;
+			// рисуване на броеница от n окръжности с k възела
+            // At the moment I managed to create a donut but I have to get the homework done
+			for (var i = 0; i < n; i++)
+			{
+				circle(i * degs, armbandRad, changingRad, pointsCount);
+			}
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Броеница</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

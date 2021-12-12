@@ -1,0 +1,217 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Заливът</title>
+
+	<script src="webgl-fmi.js"></script>
+	<script src="shaders.js"></script>
+	
+	<script>
+        var n = 256;
+		var data2 = [];
+		for (var x=0; x<=n; x++)
+		{
+			data2[x] = [];
+			for (var y=0; y<=n; y++)
+				data2[x][y] = [x-n/2,y-n/2,0];
+		}
+		
+		function terrain(x1,y1,x2,y2)
+		{
+			var xm = (x1+x2)/2;
+			var ym = (y1+y2)/2;
+            var i = 2
+			
+			data2[xm][y1][i] = (data2[x1][y1][i]+data2[x2][y1][i])/2;
+			data2[xm][y2][i] = (data2[x1][y2][i]+data2[x2][y2][i])/2;
+			data2[x1][ym][i] = (data2[x1][y1][i]+data2[x1][y2][i])/2;
+			data2[x2][ym][i] = (data2[x2][y1][i]+data2[x2][y2][i])/2;
+			data2[xm][ym][i] = (data2[xm][y1][i]+data2[xm][y2][i])/2;
+
+			var k = (x2-x1)/((i<2)?7:4);
+			data2[xm][y1][i] += random(-k,k);
+			data2[xm][y2][i] += random(-k,k);
+			data2[x1][ym][i] += random(-k,k);
+			data2[x2][ym][i] += random(-k,k);
+			data2[xm][ym][i] += random(-k,k);
+		}
+		
+		size = n;
+		while (size > 1)
+		{
+			for (var x=0; x<n; x+=size)
+				for (var y=0; y<n; y+=size)
+					terrain(x,y,x+size,y+size);
+			size /= 2;
+		}
+
+        function getNormalVector(x, y) {
+
+            var tan1;
+            var tan2;
+
+            if(x < n) {
+                tan1 = vectorPoints(data2[x + 1][y], data2[x][y]);
+            } else {
+                tan1 = vectorPoints(data2[x - 1][y], data2[x][y]);
+            }
+
+            if(y < n) {
+                tan2 = vectorPoints(data2[x][y + 1], data2[x][y]);
+            } else {
+                tan2 = vectorPoints(data2[x][y - 1], data2[x][y]);
+            }
+
+            return unitVector(vectorProduct(tan1, tan2));
+        }
+
+        function pushDataEdge(data, x, y) {
+            data.push(data2[x][y][0],data2[x][y][1], -100, 1, 0, 0, 1);
+        }
+
+        function pushData(data, x, y, black) {
+            var normal = getNormalVector(x, y);
+            data.push(data2[x][y][0],data2[x][y][1],data2[x][y][2], black, normal[0], normal[1], normal[2]);
+        }
+		
+		// случаен терен
+		function randomTerrain()
+		{
+			var data = [];
+            for (var x=0; x < n; x++) {
+                for (var y=0; y<=n; y++) {
+                    pushData(data, x, y, 0);
+                    pushData(data, x + 1, y, 0);
+                    if(y === 0 || y === n) {
+                        pushData(data, x, y, 1);
+                        pushData(data, x + 1, y, 1);
+                        pushDataEdge(data, x, y);
+                        pushDataEdge(data, x + 1, y);
+                    }
+                }
+
+                // Invisible squares so we can use one strip
+                pushDataEdge(data, x + 1, n);
+                pushData(data, x + 1, 0, 1);
+            }
+
+            for(var x = 0; x <= n; x+=n) {
+                for (var y = 0; y < n; y++) {
+                    pushData(data, x, y, 1);
+                    pushData(data, x, y + 1, 1);
+
+                    pushDataEdge(data, x, y);
+                    pushDataEdge(data, x, y + 1);
+                }
+            }
+
+            this.buf = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+			this.n = data.length/7;
+			this.center = [0,0,0];
+			this.size = 1;
+			this.color = [0,0,0];
+		}
+		
+		// случаен терен - рисуване
+		randomTerrain.prototype.draw = function()
+		{
+			pushMatrix();
+			gl.vertexAttrib3fv(aColor,this.color);
+			translate(this.center);
+			scale([this.size,this.size,this.size]);
+			useMatrix();
+				gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+				gl.enableVertexAttribArray(aXYZ);
+				gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,7*FLOATS,0*FLOATS);
+				gl.enableVertexAttribArray(aIsBlack);
+				gl.vertexAttribPointer(aIsBlack,1,gl.FLOAT,false,7*FLOATS,3*FLOATS);
+				gl.vertexAttribPointer(aNormal,3,gl.FLOAT,false,7*FLOATS,4*FLOATS);
+                //gl.disableVertexAttribArray(aNormal);
+                //gl.vertexAttrib3f(aNormal, 0, 0, 1);
+				gl.drawArrays(gl.TRIANGLE_STRIP, 0, this.n);
+			popMatrix();
+		}
+		
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram(vShader,fShader);
+			getVariables();
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0.8,0.9,1,1);
+
+			// магически код за поддръжка на прозрачност на водата
+			gl.enable(gl.BLEND);
+			gl.blendFunc(gl.SRC_ALPHA,gl.SRC_ONE_MINUS_ALPHA);
+			gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+			
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniform1i(uUseNormalMatrix,false);
+
+			gl.uniform3f(uAmbientColor,0.3,0.3,0.3);
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// водата
+			water = new Cuboid([0,0,-50],[n,n,100]);
+			water.color = [0,0,0.5];
+
+			// създаване на случаен терен
+            terra = new randomTerrain();
+		}
+
+		var time = now();
+		function now() { return (new Date()).getTime()/1000; }
+		
+		function drawFrame()
+		{
+			time = now();
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+			
+			lookAt([250*cos(time/3),450*sin(time/3),200+100*sin(time/2)],[0,0,0],[0,0,1]);
+
+			// рисуване на терена
+
+			gl.depthMask(true);
+			gl.uniform1f(uAlpha,1); // прозрачност
+		    terra.draw();
+
+			gl.depthMask(false);
+			gl.uniform1f(uAlpha,0.6); // прозрачност
+            gl.enable(gl.POLYGON_OFFSET_FILL);
+            gl.polygonOffset(0,+100);
+			water.draw();
+            gl.disable(gl.POLYGON_OFFSET_FILL);
+
+			// рисуване на водата
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Заливът</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

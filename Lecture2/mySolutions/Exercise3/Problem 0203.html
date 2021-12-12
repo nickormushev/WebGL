@@ -1,0 +1,43 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Цветни точки</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		attribute vec2 aXY;
+        attribute float aGreen;
+        varying float vGreen;
+
+		void main ()
+		{
+			gl_Position = vec4(aXY,0,1);
+            vGreen = aGreen;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+        precision mediump float;
+        varying float vGreen;
+		void main( )
+		{
+			gl_FragColor = vec4(1,vGreen,0,1);
+		}
+	</script>
+
+	<script src="solution.js"></script>	
+</head>
+
+<body onload="start()">
+	<h2>Цветни точки</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

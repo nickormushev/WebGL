@@ -1,0 +1,378 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Възелът</title>
+
+	<script src="webgl-fmi.js"></script>
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		
+		uniform bool uUseAmbient;
+		uniform vec3 uAmbientColor;
+
+		uniform bool uUseDiffuse;
+		uniform vec3 uDiffuseColor;
+
+		uniform vec3 uLightDir;
+		
+		attribute vec3 aXYZ;		// координати на връх
+		attribute vec3 aColor;		// цвят на връх
+		attribute vec3 aNormal;		// нормален вектор на връх
+
+		varying vec3 vNormal;
+		varying vec3 vColor;
+		varying vec3 vPos;
+		
+		void main ()
+		{
+			mat4 mvMatrix = uViewMatrix * uModelMatrix;
+			vec4 pos = mvMatrix * vec4(aXYZ,1);
+			gl_Position = uProjectionMatrix * pos;
+
+			// околна светлина
+			vColor = aColor;
+			if (uUseAmbient)
+				vColor *= uAmbientColor;
+			
+			// дифузно отражение
+			vec3 normal = vec3(normalize(mvMatrix*vec4(aNormal,0)));
+			vec3 light = normalize(-uLightDir);
+			if (uUseDiffuse)
+				vColor += aColor*uDiffuseColor*max(dot(normal,light),0.0);
+
+			vPos = pos.xyz/pos.w;
+			vNormal = normal;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+
+		// преместено тук от другия шейдър
+		uniform highp vec3 uLightDir;
+		uniform bool uUseSpecular;
+		uniform vec3 uSpecularColor;
+
+		varying vec3 vNormal;
+		varying vec3 vColor;
+		varying vec3 vPos;
+
+		void main( )
+		{
+			vec3 light = normalize(-uLightDir);
+			
+			// намиране на отразения лъч
+			vec3 reflectedLight = normalize(reflect(light,normalize(vNormal)));
+
+			// в локалната координатна система "окото" на гледащия е в (0,0,0),
+			// а векторът от точката до "окото" е pos-(0,0,0) = pos
+			vec3 viewDir = normalize(vPos);
+
+			// готови сме да сметнем лъскавината
+			float cosa = max(dot(reflectedLight,viewDir),0.0);
+			vec3 specularColor = vec3(pow(cosa,5.0));
+			gl_FragColor = vec4(vColor+specularColor,1);
+		}
+	</script>
+
+	<script>
+        var TREFOIL_MAJOR_SIDES = 80;
+		var TREFOIL_MINOR_SIDES = 85;
+        var TORUS_KNOT_MAJOR_SIDES = 80;
+		var TORUS_KNOT_MINOR_SIDES = 85;
+
+        function rainbow(numOfSteps, step) {
+                var r, g, b;
+                var h = 1 - (step / numOfSteps);
+                // Закръгля
+                var i = ~~(h * 6);
+                console.log(i);
+                var f = h * 6 - i;
+                var q = 1 - f;
+                switch(i % 6){
+                    case 0: return [1, f, 0];
+                    case 1: return [q, 1, 0];
+                    case 2: return [0, 1, f];
+                    case 3: return [0, q, 1];
+                    case 4: return [f, 0, 1];
+                    case 5: return [1, 0, q];
+                }
+        }
+
+		TorusKnot = function(center, size, R, r, p, q, c)
+		{	
+
+			// пресмята връх от два ъгъла
+			function vertexTorusKnot(t, R, r)
+			{
+				var x = (R+r*Math.cos(q * t))*Math.cos(p * t);
+				var y = (R+r*Math.cos(q * t))*Math.sin(p * t);
+				var z = r*Math.sin(q * t);
+				return [x,y,z];
+			}
+
+				
+			// попълва в буфера връх и нормалния му вектор
+			function dataPush(s, t)
+			{	
+                var point = vertexTorusKnot(t, R, r);
+				var centerPoint = vertexTorusKnot(t, R, 0);
+				var pNext = vertexTorusKnot(t + 0.01, R, r);
+
+                var tang = vectorPoints(pNext, point);
+                var b = unitVector(vectorPoints(point, centerPoint));
+                var n = unitVector(vectorProduct(tang, b));
+                tang = unitVector(vectorProduct(n, b));
+
+
+                var pKnot = [point[0] + c * Math.sin(s) * n[0] + c * Math.cos(s) * b[0], 
+                             point[1] + c * Math.sin(s) * n[1] + c * Math.cos(s) * b[1], 
+                             point[2] + c * Math.sin(s) * n[2] + c * Math.cos(s) * b[2]];
+                var nKnot = [Math.sin(s) * n[0] + Math.cos(s) * b[0],
+                             Math.sin(s) * n[1] + Math.cos(s) * b[1],
+                             Math.sin(s) * n[2] + Math.cos(s) * b[2]];
+
+
+				data.push(pKnot[0],pKnot[1],pKnot[2],nKnot[0],nKnot[1],nKnot[2]);
+			}
+			
+			
+            var data = [];
+			var dA = 2*Math.PI/TORUS_KNOT_MAJOR_SIDES;
+			var dB = 2*Math.PI/TORUS_KNOT_MINOR_SIDES;
+
+			// генериране на ленти (по b)
+			for (var bi = 0; bi<TORUS_KNOT_MINOR_SIDES; bi++)
+			{
+				var b1 = bi*dB;
+				var b2 = (bi+1)*dB;
+				
+				// генериране на лента (по a)
+				for (var ai=0; ai<=TORUS_KNOT_MAJOR_SIDES; ai++)
+				{
+					var a = ai*dA;
+					dataPush(a,b1);
+					dataPush(a,b2);
+				}
+			}
+
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+			
+			// запомняме брой ленти, брой триъгълници, буфера, центъра, размера, цвета
+			this.l = TORUS_KNOT_MINOR_SIDES;
+			this.n = TORUS_KNOT_MAJOR_SIDES*2+2;
+			this.buf = buf;
+			this.center = center;
+			this.size = size;
+			this.color = [0.5,0.75,1];
+		}
+
+		// тор - метод за рисуване
+		TorusKnot.prototype.draw = function()
+		{	
+			pushMatrix();
+			gl.vertexAttrib3fv(aColor,this.color);
+			translate(this.center);
+			scale([this.size,this.size,this.size]);
+			useMatrix();
+
+			gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+			// върхове
+			gl.enableVertexAttribArray(aXYZ);
+			gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,6*FLOATS,0*FLOATS);
+			// нормали
+			gl.enableVertexAttribArray(aNormal);
+			gl.vertexAttribPointer(aNormal,3,gl.FLOAT,false,6*FLOATS,3*FLOATS);
+			// рисуваме лентите
+			for (var i=0; i<this.l; i++)
+			{
+				gl.drawArrays(gl.TRIANGLE_STRIP,this.n*i,this.n);
+			}
+
+			popMatrix();
+		}
+
+		// пресмята връх от параметър t
+		function vertexTrefoil(t)
+		{
+			var x = Math.sin(t) + 2 * Math.sin(2 * t);
+			var y = Math.cos(t) - 2 * Math.cos(2 * t);
+			var z = Math.sin(-3 * t);
+			return [x,y,z];
+		}
+
+		// Геврек - конструктор
+		TrefoilKnot = function(center,size, radius)
+		{	
+
+			// попълва в буфера връх и нормалния му вектор
+			function dataPush(s, t)
+			{	
+                var point = vertexTrefoil(t);
+				var pNext = vertexTrefoil(t + 0.01);
+
+                var tang = vectorPoints(pNext, point);
+                var vec = [0, 0, 1];
+                var b = unitVector(vectorPoints(vec, point));
+                var n = unitVector(vectorProduct(tang, b));
+                tang = unitVector(vectorProduct(n, b));
+
+
+                var pKnot = [point[0] + radius * Math.cos(s) * n[0] + radius * Math.sin(s) * b[0], 
+                             point[1] + radius * Math.cos(s) * n[1] + radius * Math.sin(s) * b[1], 
+                             point[2] + radius * Math.cos(s) * n[2] + radius * Math.sin(s) * b[2]];
+                var nKnot = [Math.cos(s) * n[0] + Math.sin(s) * b[0],
+                             Math.cos(s) * n[1] + Math.sin(s) * b[1],
+                             Math.cos(s) * n[2] + Math.sin(s) * b[2]];
+
+                var color = rainbow(2*Math.PI, t);
+
+				data.push(pKnot[0],pKnot[1],pKnot[2],nKnot[0],nKnot[1],nKnot[2], color[0], color[1], color[2]);
+			}
+			
+			
+            var data = [];
+			var dA = 2*Math.PI/TREFOIL_MAJOR_SIDES;
+			var dB = 2*Math.PI/TREFOIL_MINOR_SIDES;
+
+			// генериране на ленти (по b)
+			for (var bi = 0; bi<TREFOIL_MINOR_SIDES; bi++)
+			{
+				var b1 = bi*dB;
+				var b2 = (bi+1)*dB;
+				
+				// генериране на лента (по a)
+				for (var ai=0; ai<=TREFOIL_MAJOR_SIDES; ai++)
+				{
+					var a = ai*dA;
+					dataPush(a,b1);
+					dataPush(a,b2);
+				}
+			}
+
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+			
+			// запомняме брой ленти, брой триъгълници, буфера, центъра, размера, цвета
+			this.l = TREFOIL_MINOR_SIDES;
+			this.n = TREFOIL_MAJOR_SIDES*2+2;
+			this.buf = buf;
+			this.center = center;
+			this.size = size;
+			this.color = [0.5,0.75,1];
+		}
+
+		TrefoilKnot.prototype.draw = function()
+		{	
+			pushMatrix();
+			translate(this.center);
+			scale([this.size,this.size,this.size]);
+			useMatrix();
+
+			gl.bindBuffer(gl.ARRAY_BUFFER,this.buf);
+			// върхове
+			gl.enableVertexAttribArray(aXYZ);
+			gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,9*FLOATS,0*FLOATS);
+			// нормали
+			gl.enableVertexAttribArray(aNormal);
+			gl.vertexAttribPointer(aNormal,3,gl.FLOAT,false,9*FLOATS,3*FLOATS);
+            // цвят
+			gl.enableVertexAttribArray(aColor);
+			gl.vertexAttribPointer(aColor,3,gl.FLOAT,false,9*FLOATS,6*FLOATS);
+			// рисуваме лентите
+			for (var i=0; i<this.l; i++)
+			{
+				gl.drawArrays(gl.TRIANGLE_STRIP,this.n*i,this.n);
+			}
+
+			popMatrix();
+		}
+
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			
+			aXYZ = gl.getAttribLocation(glprog,"aXYZ");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+
+			aColor = gl.getAttribLocation(glprog,"aColor");
+			uAmbientColor = gl.getUniformLocation(glprog,"uAmbientColor");
+			uUseAmbient   = gl.getUniformLocation(glprog,"uUseAmbient");
+
+			aNormal = gl.getAttribLocation(glprog,"aNormal");
+			uDiffuseColor = gl.getUniformLocation(glprog,"uDiffuseColor");
+			uUseDiffuse = gl.getUniformLocation(glprog,"uUseDiffuse");
+			uLightDir = gl.getUniformLocation(glprog,"uLightDir");
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(0,0,0,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+
+			gl.uniform3f(uAmbientColor,0.4,0.4,0.4);
+			gl.uniform1i(uUseAmbient,true);
+
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform1i(uUseDiffuse,true);
+			
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// създаваме трилистния възел
+			s = new TrefoilKnot([0,0,0], 1, 0.5);
+			torK = new TorusKnot([0,7,0], 1, 2, 1, 2, 3, 0.5);
+		}
+		
+		var frame = 0;
+	
+		function drawFrame()
+		{
+			frame++;
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+
+			//lookAt([15*Math.sin(frame/100),0,-15*Math.cos(frame/100)], [0,0,0], [0,-1,1]);
+			//xRotate(0.5);
+			lookAt([-15,15*Math.cos(frame/100), -15], [0,3.5,0], [0,0,1]);
+			yRotate(0.5);
+
+			// рисуване на трилистния възел
+			s.draw();
+            torK.draw();
+
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Възелът</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

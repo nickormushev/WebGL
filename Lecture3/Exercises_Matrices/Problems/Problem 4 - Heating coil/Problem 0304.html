@@ -1,0 +1,94 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Реотан</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		// ъгъл по реотана
+		attribute float aAngle;
+		
+		void main ()
+		{
+			// тук да стане в шейдъра цялата магия
+			// по накъдрянето на реотана
+            float starSides = 6.0;
+            float offset = 4.0;
+
+            float rad = (offset + cos(starSides * aAngle))/5.0;
+            vec2 xy = vec2(rad * cos(aAngle), rad * sin(aAngle));
+
+            // get the nextAngle after this one and calculate it's coordinates
+            float nextAngle = aAngle + 0.01;
+            rad = (offset + cos(starSides * nextAngle))/5.0;
+            vec2 xyNext = vec2(rad * cos(nextAngle), rad * sin(nextAngle));
+
+            // take difference between xyNext and xy which gives you the tangent vector and
+            // the direction 
+            vec2 tangentVector = xyNext - xy;
+            // Get the normal vector perpendicular to the tangentVector/rotate 90 degrees
+            // Proof dot product <x, y> <-y, x> = 0
+            vec2 normalVector = 0.1 * normalize(vec2(-tangentVector.y, tangentVector.x));
+
+            // offset the xy coordinates by the sin in the direction of the normal vector
+            xy = xy + 0.4 * sin(200.0 * nextAngle) * normalVector;
+			gl_Position = vec4(xy.x/1.5, xy.y, 0, 1);
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		uniform vec3 uColor;
+		void main( )
+		{
+			gl_FragColor = vec4(uColor,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aAngle = gl.getAttribLocation(glprog,"aAngle");
+			uColor = gl.getUniformLocation(glprog,"uColor");
+			
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			// точки по реотана
+			var n = 1500;
+
+			// n ъгъла от 0 до 2*pi
+			var data = [];
+			for(var i=0; i<n; i++) data.push(2*Math.PI*i/n);
+			
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			// цвят
+			gl.uniform3f(uColor,0.3,0.7,0.2);
+			
+			// подаваме ъглите към шейдъра, нека той да си смята
+			gl.enableVertexAttribArray(aAngle);
+			gl.vertexAttribPointer(aAngle,1,gl.FLOAT,false,0,0);
+			gl.drawArrays(gl.LINE_LOOP,0,n);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Реотан</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

@@ -1,0 +1,69 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Септагон</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		attribute vec2 aXY;
+		void main ()
+		{
+			gl_Position = vec4(aXY,0,1);
+			gl_PointSize = 10.0;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		void main( )
+		{
+			gl_FragColor = vec4(0,0,0,1);
+		}
+	</script>
+
+	<script>
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aXY = gl.getAttribLocation(glprog,"aXY");
+			
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			var data = [ ]; // В този масив трябва да са 7-те точки
+            let radius = random(0.6, 0.8);
+            let n = 7;
+            let step = 360/n;
+
+            for(let i = 0; i < n; i++) {
+                var radians = i * step * Math.PI/180;
+                data.push(4/6 * radius * Math.cos(radians), radius * Math.sin(radians));
+            }
+
+            console.log(data)
+            buff = gl.createBuffer();
+            gl.bindBuffer(gl.ARRAY_BUFFER, buff);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW); 
+            
+            gl.enableVertexAttribArray(aXY);
+            gl.vertexAttribPointer(aXY, 2, gl.FLOAT, false, 0, 0);
+
+            gl.drawArrays(gl.POINTS, 0, 7);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Септагон</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

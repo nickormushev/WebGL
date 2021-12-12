@@ -1,0 +1,203 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Вълнàта</title>
+
+	<script src="webgl-fmi.js">
+		// Подсказки:
+		//	1. за анимация в реално време вълнението трябва
+		// 	   да слезе в шейдърите, а да не е на JavaScript
+		//	2. ефектът на Мах може да се намали, като се
+		//	   увеличи броя на върховете, но целта е да се
+		//	   махне без да се прави това
+	</script>
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		
+		uniform bool uUseAmbient;
+		uniform vec3 uAmbientColor;
+
+		uniform bool uUseNyanColour;
+
+		uniform bool uUseDiffuse;
+		uniform vec3 uDiffuseColor;
+
+		uniform vec3 uLightDir;
+		
+		attribute vec2 aRA;		// координати на връх
+		attribute float aFrame;		// номер на кадър
+
+		varying vec3 vNormal;
+		varying vec3 vColor;
+		varying vec3 vPos;
+
+        vec3 rgb2hsv(vec3 c) {
+            vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+            vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+            vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+
+            float d = q.x - min(q.w, q.y);
+            float e = 1.0e-10;
+            return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+        }
+
+        vec3 hsv2rgb(vec3 c) {
+            vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+            vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+            return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+        }
+
+        vec3 hsl2rgb(vec3 c )
+        {
+            vec3 rgb = clamp( abs(mod(c.x*6.0+vec3(0.0,4.0,2.0),6.0)-3.0)-1.0, 0.0, 1.0 );
+        
+            return c.z + c.y * (rgb-0.5)*(1.0-abs(2.0*c.z-1.0));
+        }
+
+        vec3 getColour() {
+            if (uUseNyanColour == false) {
+                return vec3( 92.0/255.0, 51.0/255.0, 23.0/255.0 );
+            }
+
+            float offset = 7.0;
+            float colourCount = 6.0;
+            float radius  = mod(aRA.x - 3.0/2.0 * aFrame, offset * colourCount);
+            if(radius < offset) {
+                vec3 hsv = rgb2hsv(vec3(255.0/255.0, 0.0, 1.0));
+                hsv.y = 0.6;
+                hsv.z = 0.6;
+                return hsv2rgb(hsv);
+            }
+
+            if(radius < 2.0 * offset) {
+                vec3 hsv = rgb2hsv(vec3(0.0, 1.0, 1.0));
+                hsv.y = 0.6;
+                hsv.z = 1.0;
+                return hsv2rgb(hsv);
+            }
+        
+            if(radius < 3.0 * offset) {
+                vec3 hsv = rgb2hsv(vec3(0.0/255.0, 1.0, 0.0/255.0));
+                hsv.y = 0.6;
+                hsv.z = 1.0;
+                return hsv2rgb(hsv);
+            }
+        
+            if(radius < 4.0 * offset) {
+                vec3 hsv = rgb2hsv(vec3(255.0/255.0, 255.0/255.0, 0.0/255.0));
+                hsv.y = 0.9;
+                hsv.z = 1.0;
+                return hsv2rgb(hsv);
+            }
+        
+            if(radius < 5.0 * offset) {
+                vec3 hsv = rgb2hsv(vec3(1.0, 165.0/255.0, 0.0));
+                hsv.y = 0.9;
+                hsv.z = 1.0;
+                return hsv2rgb(hsv);
+            }
+
+            vec3 hsv = rgb2hsv(vec3(255.0/255.0, 0.0/255.0, 0.0/255.0));
+            hsv.y = 0.7;
+            hsv.z = 1.0;
+            return hsv2rgb(hsv);
+        }
+
+        float surface(float x, float y)
+        {
+            float r = sqrt(x * x + y * y);
+            return 3.0 * pow(cos((r - aFrame) / 4.0),6.0);
+        }
+
+        vec3 calculateNormalVector(float x, float y) {
+            float eps = 0.01;
+            vec3 p1 = vec3(x, y, surface(x, y));
+            vec3 p2 = vec3(x + eps, y, surface(x + eps, y));
+            vec3 p3 = vec3(x, y + eps, surface(x, y + eps));
+
+            return normalize(cross(p2 - p1, p3 - p1));
+        }
+		
+		void main ()
+		{
+			mat4 mvMatrix = uViewMatrix * uModelMatrix;
+            float x = clamp(aRA.x * cos(aRA.y), -40.0, 40.0);
+            float y = clamp(aRA.x * sin(aRA.y), -40.0, 40.0);
+            float z = surface(x, y);
+			vec4 pos = mvMatrix * vec4(x, y, z, 1);
+			gl_Position = uProjectionMatrix * pos;
+
+            float r = sqrt(x * x + y * y);
+            vec3 colour = getColour();
+			// околна светлина
+            vColor = colour;
+			if (uUseAmbient)
+				vColor *= uAmbientColor;
+			
+            vec3 initialNormal = calculateNormalVector(x, y);
+			// дифузно отражение
+			vec3 normal = vec3(normalize(mvMatrix*vec4(initialNormal,0)));
+			vec3 light = normalize(-uLightDir);
+			if (uUseDiffuse)
+				vColor += colour*uDiffuseColor*max(dot(normal,light),0.0);
+
+			vPos = pos.xyz/pos.w;
+			vNormal = normal;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+
+		// преместено тук от другия шейдър
+		uniform highp vec3 uLightDir;
+		uniform bool uUseSpecular;
+		uniform vec3 uSpecularColor;
+		uniform float uShininess;
+
+		varying vec3 vNormal;
+		varying vec3 vColor;
+		varying vec3 vPos;
+
+		void main( )
+		{
+
+			vec3 specularColor = vec3(0);
+			
+			// огледално отражение
+			if (uUseSpecular)
+			{
+				vec3 light = normalize(-uLightDir);
+				vec3 reflectedLight = normalize(reflect(light,normalize(vNormal)));
+				vec3 viewDir = normalize(vPos);
+
+				float cosa = max(dot(reflectedLight,viewDir),0.0);
+				specularColor = uSpecularColor*pow(cosa,uShininess);
+			}
+
+			gl_FragColor = vec4(vColor+specularColor,1);
+		}
+	</script>
+
+	<script src="solution.js"></script>	
+</head>
+
+<body onload="start()">
+	<h2>Вълнàта</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+    <br>
+    <button onclick="enable_chocolate()">Шоколад</button>
+    <button onclick="enable_nyan()">Нян</button>
+
+</body>

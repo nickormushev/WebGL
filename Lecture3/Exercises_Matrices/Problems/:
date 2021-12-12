@@ -1,0 +1,150 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Пирамидите в Гиза</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		attribute vec3 aXYZ;
+		void main ()
+		{
+			gl_Position = uProjectionMatrix * uViewMatrix * uModelMatrix * vec4(aXYZ,1);
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		uniform vec3 uColor;
+		void main( )
+		{
+			gl_FragColor = vec4(uColor,1);
+		}
+	</script>
+	
+	<script>
+		// рисуване на пирамида, изберете подходящи параметри
+		function pyramid()
+		{
+            useMatrix();
+            gl.drawArrays(gl.LINE_LOOP, 0, 3);
+            yRotate(90);
+            useMatrix();
+            gl.drawArrays(gl.LINE_LOOP, 0, 3);
+            yRotate(180);
+            useMatrix();
+            gl.drawArrays(gl.LINE_LOOP, 0, 3);
+            yRotate(270);
+            useMatrix();
+            gl.drawArrays(gl.LINE_LOOP, 0, 3);
+			// рисуването да се направи като се рисува
+			// една стена и със завъртане се рисуват и
+			// останалите стени.
+		}
+
+		function start( )
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+			
+			aXYZ = gl.getAttribLocation(glprog,"aXYZ");
+			uColor = gl.getUniformLocation(glprog,"uColor");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+
+			gl.clearColor(1,1,1,1);
+			gl.clear(gl.COLOR_BUFFER_BIT);
+
+			var proj = perspMatrix(30,gl.canvas.width/gl.canvas.height,1,40000);
+			gl.uniformMatrix4fv(uProjectionMatrix,false,proj);
+
+			var view;
+			//view = viewMatrix([20, 10,5], [0,0,-1], [0,1,0]);
+			view = viewMatrix([10, 50,-4], [0,-3,-4], [0,1,0]);
+			gl.uniformMatrix4fv(uViewMatrix,false,view);
+
+			// околна стена на пирамида: празен масив, да се попълни
+			let data = [
+                        -1.15, 0, 1.15,
+                        1.15, 0, 1.15,
+                        0, 1.47, 0
+                    ];
+			var buf = gl.createBuffer();
+			gl.bindBuffer(gl.ARRAY_BUFFER,buf);
+			gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+			gl.enableVertexAttribArray(aXYZ);
+			gl.vertexAttribPointer(aXYZ,3,gl.FLOAT,false,0,0);
+
+			// черни пирамиди
+			gl.uniform3f(uColor,0,0,0);
+
+			// рисуване на 11-те пирамиди в Гиза една по една
+
+            // IMPORTANT:
+            // A better idea would be to create a function that
+            // first creates the identity matrix. After that
+            // it scales and translates.
+            // Because I have moved the object the scaling does not
+            // work properly which leads to issues. Order does matter
+            // for matrix operations.
+            identity();
+            translate([-4,0,-7]);
+            pyramid();
+            // g-1 pyramids width 50
+            // g-1 pyramids height 30
+            scale([1/4.6, 1/5, 1/4.6])
+            translate([-2, 0, 9]);
+            pyramid();
+            translate([3, 0, 0]);
+            pyramid();
+            translate([-3, 0, 0]);
+            pyramid();
+            // small pyramid next to queens width 22, height 13. g1-d
+            scale([1/2, 1/3, 1/2])
+            translate([-2, 0, 4]);
+            pyramid();
+            //khafre  height 136, width 215
+            scale([9, 12, 9])
+            translate([-3, 0, -5]);
+            pyramid();
+
+            // subsidiary pyramid. No height info found. Took same as g1-d
+            scale([1/9, 1/12, 1/9])
+            translate([13, 0, 0]);
+            pyramid();
+
+            // menkaure height 65 width 102
+            scale([4, 5, 4])
+            translate([-3, 0, -5]);
+            pyramid();
+
+            // queen pyramids
+            scale([2/5, 3/5, 2/5])
+            translate([6, 0, 0]);
+            pyramid();
+            translate([0, 0, -3]);
+            pyramid();
+            translate([0, 0, +3]);
+            pyramid();
+			// и т.н.
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Пирамидите в Гиза</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

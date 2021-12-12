@@ -1,0 +1,176 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>Часовникарско зъбно колелце</title>
+
+	<script src="webgl-fmi.js"></script>
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		uniform mat4 uProjectionMatrix;
+		uniform mat4 uViewMatrix;
+		uniform mat4 uModelMatrix;
+		
+		uniform bool uUseAmbient;
+		uniform vec3 uAmbientColor;
+
+		uniform bool uUseDiffuse;
+		uniform vec3 uDiffuseColor;
+
+		uniform vec3 uLightDir;
+		
+		attribute vec3 aXYZ;
+		attribute vec3 aColor;
+		attribute vec3 aNormal;
+
+		varying vec3 vColor;
+		
+		void main ()
+		{
+			mat4 mvMatrix = uViewMatrix * uModelMatrix;
+			gl_Position = uProjectionMatrix * mvMatrix * vec4(aXYZ,1);
+
+			// околна светлина
+			if (uUseAmbient)
+				vColor = uAmbientColor*aColor;
+			else
+				vColor = aColor;
+
+			// дифузно отражение
+			if (uUseDiffuse)
+			{
+				vec3 light = normalize(-uLightDir);
+				vec3 normal = vec3(normalize(mvMatrix*vec4(aNormal,0)));
+				vColor += aColor*uDiffuseColor*max(dot(normal,light),0.0);
+			}
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		varying vec3 vColor;
+		void main( )
+		{
+			gl_FragColor = vec4(vColor,1);
+		}
+	</script>
+
+
+	<script>
+		
+		function start( )
+		{
+			var	canvas = document.getElementById("picasso");
+			canvas.addEventListener('webglcontextlost',function(event){event.preventDefault();},false);
+			canvas.addEventListener('webglcontextrestored',function(){init();},false);
+
+			init();
+			drawFrame();
+		}
+		
+        let parallelegram, prism, cube, dots;
+		function init()
+		{
+			gl = getContext("picasso");
+			glprog = getProgram("vshader","fshader");
+
+			aXYZ = gl.getAttribLocation(glprog,"aXYZ");
+			uProjectionMatrix = gl.getUniformLocation(glprog,"uProjectionMatrix");
+			uViewMatrix = gl.getUniformLocation(glprog,"uViewMatrix");
+			uModelMatrix = gl.getUniformLocation(glprog,"uModelMatrix");
+
+			aColor = gl.getAttribLocation(glprog,"aColor");
+			uAmbientColor = gl.getUniformLocation(glprog,"uAmbientColor");
+			uUseAmbient   = gl.getUniformLocation(glprog,"uUseAmbient");
+
+			aNormal = gl.getAttribLocation(glprog,"aNormal");
+			uDiffuseColor = gl.getUniformLocation(glprog,"uDiffuseColor");
+			uUseDiffuse = gl.getUniformLocation(glprog,"uUseDiffuse");
+			uLightDir = gl.getUniformLocation(glprog,"uLightDir");
+
+			gl.enable(gl.DEPTH_TEST);
+			gl.clearColor(1,1,0.9,1);
+
+			identity();
+			perspective(30,gl.canvas.width/gl.canvas.height,1,40000);
+
+			gl.uniform3f(uAmbientColor,0.4,0.4,0.4);
+			gl.uniform1i(uUseAmbient,true);
+
+			gl.uniform3f(uDiffuseColor,1,1,1);
+			gl.uniform1i(uUseDiffuse,true);
+			
+			gl.uniform3f(uLightDir,0,0,-1);
+
+			// обекти, от които е построено колелцето
+			prism = new Prism([0,0,0], 0.3, 0.3, 3);
+            cube = new Cuboid([0,0,0],[0.3, 0.3, 0.3]);	
+			cube.color = [0.5,0.5,0.55];
+            prism.color = [0.5,0.5,0.55];
+
+            parallelegram = new Cuboid([0,0,0],[1.8, 0.5, 0.2]);	
+            parallelegram.color = [0.25,0.25,0.25];
+
+            dots = new Cylinder([0,0,0.01], 0.3 , 0.1);	
+            dots.color = [1, 1, 1];
+		}
+		
+		var frame = 0;
+	
+		function drawFrame()
+		{
+			frame++;
+			gl.clear(gl.COLOR_BUFFER_BIT+gl.DEPTH_BUFFER_BIT);
+
+			lookAt([20*Math.cos(frame/100),20*Math.sin(frame/100),6+3*Math.sin(frame/50)], [0,0,0], [0,1,1+Math.cos(frame/50)]);
+
+			// рисуване на колелцето
+            let n = 100;
+            let rotateStep = 360/n;
+            // inner circle
+            for(let i = 0; i < n; i++) {
+                identity();
+                zRotate(i * rotateStep);
+                translate([0.65, 0, 0]);
+                cube.draw();
+            }
+
+            //outer circle
+            rotateStep = 360/n;
+            for(let i = 0; i < n; i++) {
+                identity();
+                zRotate(i * rotateStep);
+                scale([3, 3, 1]);
+                translate([1, 0, -0.20]);
+                prism.draw();
+            }
+
+            n = 5;
+            rotateStep = 360/n;
+            //connectors and dots
+            for(let i = 0; i < n; i++) {
+                identity();
+                zRotate(i * rotateStep);
+                translate([1.60, 0, 0]);
+                parallelegram.draw();
+                translate([1.60, 0, 0]);
+                dots.draw();
+
+            }
+
+			requestAnimationFrame(drawFrame);
+		}
+	</script>	
+</head>
+
+<body onload="start()">
+	<h2>Часовникарско зъбно колелце</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>

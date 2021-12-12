@@ -1,0 +1,59 @@
+﻿<!DOCTYPE html>
+
+<head>
+	<meta charset="utf-8"/>
+	<title>GLSL пеперуда</title>
+
+	<script src="webgl-fmi.js"></script>	
+	
+	<script id="vshader" type="x-shader/x-vertex">
+		// допълнете променливи в шейдъра
+        attribute float aIndex;
+        uniform int uDotCount;
+        uniform float uAspect;
+		attribute vec3 aRGB;
+		varying vec3 vRGB;
+		void main ()
+		{
+			// и пресмятане на координатите на точка от пеперудата
+            float increment = 360.0/float(uDotCount);
+            float angle = radians(increment * aIndex);
+
+            // butterfly formula
+            float radius = exp(cos(angle)) - 2.0 * cos(4.0 * angle) + pow(sin(angle/12.0), 5.0); 
+            float scaledRadius = radius/2.5;
+
+            // normally x is r * cos(angle) and y is r*sin(angle)
+            // Here this is not the case because we want the butterfly to face up
+            // If we leave it like it is it will be facing right.
+            // We want to rotate the buttefly 180 degrees which can be achieved by adding 180 to the angle
+            // or by swapping sin and cos which is basically the same.
+			gl_Position = vec4(uAspect * scaledRadius * sin(angle), scaledRadius * cos(angle) - 0.266 , 0, 1);
+			gl_PointSize = 4.0;
+			vRGB = aRGB;
+		}
+	</script>
+	
+	<script id="fshader" type="x-shader/x-fragment">
+		precision mediump float;
+		varying vec3 vRGB;
+		void main( )
+		{
+			gl_FragColor = vec4(vRGB,1);
+		}
+	</script>
+
+	<script src="solution.js"></script>	
+</head>
+
+<body onload="start()">
+	<h2>GLSL пеперуда</h2>
+
+	<noscript>
+		Искаме JavaScript, но няма!
+	</noscript>
+	
+	<canvas id="picasso" width="600" height="400" style="border: solid;">
+		Искаме canvas, но няма!
+	</canvas>
+</body>
